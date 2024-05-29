@@ -1,4 +1,3 @@
-![image](https://github.com/Minhbui7/bedrock-agent-txt2sql/assets/80823555/0e8d2aa3-9f1e-41f9-869e-7a331126d792)
 # Setup Amazon Bedrock Agent for Text2SQL Using Amazon Athena with Streamlit
 
 ## Introduction
@@ -580,7 +579,8 @@ Optionally, you can review the trace events in the left toggle of the screen. Th
 
 1. Setup your IoT device to send data to IoT Core. Here we assume that you are using AWS IoT Core service to ingest MQTT Payload from your IoT Device
    A typical JSON payload would be:
-   
+
+```
 {
   "tof": 54,
   "t_temp_low": 29.57,
@@ -591,6 +591,23 @@ Optionally, you can review the trace events in the left toggle of the screen. Th
   "e_humidity": 70.8,
   "light2": 294.57
 }
+```
+This post does not describe the details of onboarding an IoT Device to the IoT Core. But you can follow the simple steps described in the blog post
+There are a lot of resources (AWS and non-AWS) to quikcly get started on connecting to IoT Core, I'm linking a few of them:
+
+- [arduino](https://docs.arduino.cc/tutorials/opta/getting-started-with-aws-iot-core/)
+
+- [raspberry pi link 1](https://docs.aws.amazon.com/iot/latest/developerguide/connecting-to-existing-device.html)
+or
+- [raspberry pi link 2](https://community.aws/concepts/getting-started-with-pico-w-iot-core)
+
+- [IoT Core getting started](https://docs.aws.amazon.com/iot/latest/developerguide/iot-gs.html)
+
+You can also just create an application running in EC2 or your local laptop to simulate an IoT Device. 
+
+For step by step instructions, refer to:
+[AWS IoT Core Workshop](https://catalog.workshops.aws/aws-iot-immersionday-workshop/en-US/aws-iot-core/device-sdk-v2/lab11-gettingstarted2)
+
 
 2. Create a S3 bucket that will hold the IoT Data
 for example:
