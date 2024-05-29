@@ -1,4 +1,4 @@
-
+![image](https://github.com/Minhbui7/bedrock-agent-txt2sql/assets/80823555/0e8d2aa3-9f1e-41f9-869e-7a331126d792)
 # Setup Amazon Bedrock Agent for Text2SQL Using Amazon Athena with Streamlit
 
 ## Introduction
@@ -576,6 +576,142 @@ Optionally, you can review the trace events in the left toggle of the screen. Th
 
 ![Trace events ](streamlit_app/images/trace_events.png)
 
+## Setup an IoT Device as data Source
+
+1. Setup your IoT device to send data to IoT Core. Here we assume that you are using AWS IoT Core service to ingest MQTT Payload from your IoT Device
+   A typical JSON payload would be:
+   
+{
+  "tof": 54,
+  "t_temp_low": 29.57,
+  "t_temp": 31.52,
+  "t_temp_high": 33.59,
+  "e_temp": 30.9,
+  "e_pressure": 1006.9,
+  "e_humidity": 70.8,
+  "light2": 294.57
+}
+
+2. Create a S3 bucket that will hold the IoT Data
+for example:
+ s3://athena-datasource-mybucket/
+  
+4. Configure IoT Core rules that will send the data from IoT Core to the S3 bucket
+IoT Core -> routing -> Create rules
+Configure your SQL statement, assuming the IoT Device is sending data to 'mytopic' IoT Topic:
+
+```
+select * from 'mytopic'
+```
+
+Set the S3 prefix at:
+```
+iotdata/${timestamp}
+```
+
+So the data will be sent in an S3 folder:
+```
+s3://athena-datasource-mybucket/iotdata
+```
+
+4. Create a crawler that will discover the schema of the data in the S3 bucket and create the corresponding Athena Table
+   For example a table called "athena_datasource_mytable" in the "athena_db" database:
+   ```
+   athena_db.athena_datasource_mytable
+   ```
+
+6. Now you can override with the orchestration template in the Bedrock agent action group
+
+```
+   Human:
+You are a research assistant AI that has been equipped with one or more functions to help you answer a <question>. Your goal is to answer the user's question to the best of your ability, using the function(s) to gather more information if necessary to better answer the question. If you choose to call a function, the result of the function call will be added to the conversation history in <function_results> tags (if the call succeeded) or <error> tags (if the function failed). $ask_user_missing_parameters$
+You were created with these instructions to consider as well:
+<auxiliary_instructions>$instruction$</auxiliary_instructions>
+
+Here are the table schemas for the Amazon Athena database <athena_schemas>. 
+
+  <athena_schema>
+  CREATE EXTERNAL TABLE athena_db.athena_datasource_mytable (
+    `t_temp_high` double,
+    `e_temp` double,
+    `tof` integer,
+    `t_temp_low` double,
+    `e_pressure` double,
+    `light2` double,
+    `e_humidity` double,
+    `timestamp` string,
+    `t_temp` double,
+    `light2` double
+  )
+  ROW FORMAT DELIMITED 
+  FIELDS TERMINATED BY ',' 
+  LINES TERMINATED BY '\n'
+  STORED AS TEXTFILE
+  LOCATION 's3://athena-datasource-mybucket/iotdata';  
+  </athena_schema>
+
+</athena_schemas>
+
+Here are examples of Amazon Athena SQL queries to create when IoT data, sensors data or device data are requested.
+The examples includes:
+- SQL query to return all the data from the sensors between the dates: 10 march 2024 14:42 and 10 march 2024 14:45 <iot_example1>
+- SQL query to return the temperature data from the sensors between the dates: 9 march 2024 22:41 and 9 march 2024 22:45 <iot_example2>
+- SQL query to return the last 10 values for iot sensors time of flight distance data or "tof" data <iot_example3>
+- SQL query to return the last (or latest) value for pressure sensor reading <iot_example4>
+- SQL query to return the average light intensity, or average brightness level from the iot light sensors for the past last 1 hour <iot_example5>
+- SQL query to return the maximum light intensity, or brightness level from the iot sensors reading for the past last 3 hour <iot_example6>
+- SQL query to return the minimum humidity level from the iot sensors between 9 march 2024 22:43 and 9 march 2024 22:44:48  <iot_example7>
+- SQL query to return the dates when the maximum temperature was more than 29.12 degrees <iot_example8>
+
+Double check every query for correct format. Provide the Amazon SQL Athena queries if requested.
+
+
+  <iot_example1>
+  SELECT * FROM "athena_db"."athena_datasource_mytable" where "timestamp" between '2024-03-10 14:42:00' and '2024-03-10 14:45:00';
+  </iot_example1>
+
+  <iot_example2>
+  SELECT "t_temp", "timestamp" FROM "athena_db"."athena_datasource_mytable" WHERE "timestamp" between '2024-03-09 22:41' and '2024-03-09 22:45' ORDER BY "timestamp" DESC;
+  </iot_example2>
+
+  <iot_example3>
+  SELECT "tof" AS timeofflight, "timestamp" FROM "athena_db"."athena_datasource_mytable" ORDER BY "timestamp"  DESC LIMIT 10;
+  </iot_example3>
+
+  <iot_example4>
+  SELECT "e_pressure" AS pressure,"timestamp" FROM "athena_db"."athena_datasource_mytable" ORDER BY "timestamp" DESC LIMIT 1;
+  </iot_example4>
+  
+  <iot_example5>
+  SELECT AVG("light2") as average_light
+  FROM "athena_db"."athena_datasource_mytable" WHERE cast("timestamp" as timestamp) >= ((current_timestamp + interval '8' hour) - interval '1' hour )
+  AND cast("timestamp" as timestamp) <= (current_timestamp + interval '8' hour)
+  </iot_example5>
+
+  <iot_example6>
+  SELECT MAX("light2") as max_light
+  FROM "athena_db"."athena_datasource_mytable" WHERE cast("timestamp" as timestamp) >= ((current_timestamp + interval '8' hour) - interval '3' hour )
+  AND cast("timestamp" as timestamp) <= (current_timestamp + interval '8' hour)
+  </iot_example6>
+
+  <iot_example7>
+  SELECT MIN("e_humidity") AS min_humidity FROM "athena_db"."athena_datasource_mytable" WHERE "timestamp" between '2024-03-09 22:43' and '2024-03-09 22:44:48';
+  </iot_example7>
+
+  <iot_example8>
+  SELECT "t_temp", "timestamp" FROM "athena_db"."athena_datasource_mytable" WHERE "t_temp" >= 29.12 ORDER BY "timestamp" DESC;
+  </iot_example8>
+
+```
+
+6. Now your chatbot should be able to respond to query such as:
+
+   - Provide the most recent 10 dates from the iot sensor data when the maximum temperature was more than 29.12 degrees. Provide the values and SQL Query
+   - Provide the average temperature from the iot sensors for the past last 2 hours.
+   - Return the latest value for pressure sensor reading. Provide the timestamp and the SQL Query
+   - etc
+
+   
 
 ## Cleanup
 
